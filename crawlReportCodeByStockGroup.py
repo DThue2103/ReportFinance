@@ -47,6 +47,9 @@ for h3 in h3s:
                 data.append(row_data)
 
         df = pd.DataFrame(data, columns=header)
+
+        #loại bỏ các mã trùng lặp
+        df = df.drop_duplicates(subset=['Mã cổ phiếu'])
         print(df)
 
         name_df = re.sub(r'^[^a-zA-Z]*', '', nameStockGroup)

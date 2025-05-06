@@ -34,15 +34,14 @@ def get_report_pdf_link(reportCode):
 
     # Kiểm tra xem có nút "Tải BCTC" hay không và nhấn vào
     try:
-        tab = WebDriverWait(browser, 10).until(
-            EC.element_to_be_clickable(
-                (By.XPATH, "/html/body/form/div[3]/div[2]/div[1]/div[5]/div[1]/div[11]/div[2]/div[1]/ul/li[4]/a"))
-        )
+        wait = WebDriverWait(browser, 20)
+        wait.until(EC.presence_of_element_located((By.ID, "lsTab5CT")))
+        wait.until(EC.visibility_of_element_located((By.ID, "lsTab5CT")))
+        button = wait.until(EC.element_to_be_clickable((By.ID, "lsTab5CT")))
+        browser.execute_script("arguments[0].click();", button)
+        # button.click()
+        print(f"Đã click vào nút Tải BCTC của {reportCode}")
         sleep(5)
-        tab.click()
-        print("Đã click vào nút Tải BCTC.")
-        sleep(1)
-
     except NoSuchElementException:
         print(f"[Lỗi] Không tìm thấy nút 'Tải BCTC' trên {url}.")
     except ElementClickInterceptedException:
@@ -56,17 +55,18 @@ def get_report_pdf_link(reportCode):
     # Tìm thẻ chứa link báo cáo tài chính hợp nhất năm 2024 bằng nội dung hàng
     rows = browser.find_elements(By.CSS_SELECTOR, "table tr")
 
-    target_text = "báo cáo tài chính hợp nhất năm 2024 (đã kiểm toán)".lower()
+    text_list = ["báo cáo tài chính hợp nhất năm 2024 (đã kiểm toán)", "báo cáo tài chính năm 2024 (đã kiểm toán)"]
+    target_text = (lambda text: text.lower() in text_list)
     found = False
     link_pdf = ""
     for row in rows:
         tds = row.find_elements(By.TAG_NAME, "td")
         for td in tds:
-            if target_text in td.text.strip().lower():
+            if target_text(td.text.strip()):
                 try:
                     link_td = tds[2]  # Lấy ô thứ 3 trong hàng
                     link_pdf = link_td.find_element(By.TAG_NAME, "a").get_attribute("href")
-                    # print("Tìm thấy link:", link_pdf)
+                    print("Tìm thấy link:", link_pdf)
                     found = True
                     break
                 except:
@@ -93,30 +93,43 @@ def download_pdf(reportCode, link_pdf, pdf_path):
         print(f"Lỗi khi tải file, mã trạng thái: {response.status_code}")
 
 if __name__ == '__main__':
-    # tạo folder có tên là nhóm cổ phiếu
-    csv_path = "/CrawlFinanceReport/ReportFinance/ReportCode/ Nhóm cổ phiếu ngành ngân hàng.csv"
-    name_stock_group = csv_path.split("/")[-1].removesuffix(".csv").strip()
+    ReportCode_folder_path = r'D:\CrawlProjects\CrawlFinanceReport\ReportFinance\ReportCode'
+    for dirpath, dirname, filenames in os.walk(ReportCode_folder_path):
+        for filename in filenames:
+            # tạo folder có tên là nhóm cổ phiếu
+            csv_path = ""
+            name_stock_group = ""
+            if filename.lower().endswith(".csv"):  # chỉ lấy file .csv
+                csv_path = os.path.join(dirpath, filename)
+                name_stock_group = os.path.splitext(filename)[0].strip()  # bỏ .csv và khoảng trắng
 
-    folder_path = r"D:\CrawlProjects\CrawlFinanceReport\ReportFinance"
-    pdf_path = os.path.join(folder_path, "ReportFinancePDF")  # tạo folder ReportFinance để
-    os.makedirs(pdf_path, exist_ok=True)
+            folder_path = r"D:\CrawlProjects\CrawlFinanceReport\ReportFinance"
+            pdf_path = os.path.join(folder_path, "ReportFinancePDF")  # tạo folder ReportFinance để
+            os.makedirs(pdf_path, exist_ok=True)
 
-    folder_stock_group_path = os.path.join(pdf_path, name_stock_group)
-    os.makedirs(folder_stock_group_path, exist_ok=True)
+            folder_stock_group_path = os.path.join(pdf_path, name_stock_group)
+            os.makedirs(folder_stock_group_path, exist_ok=True)
 
-    # lấy link pdf từ browser
-    link_pdf = ""
-    reportCode = ""
-    noReportPDF = []
-    df = pd.read_csv(csv_path)
-    for i, row in df.iterrows():
-        reportCode = row.iloc[1]
-        link_pdf = get_report_pdf_link(reportCode)
-        if link_pdf:
-            download_pdf(reportCode, link_pdf, folder_stock_group_path)
-        else:
-            print(f"Không tìm thấy link pdf của {reportCode}")
-            noReportPDF.append(reportCode)
-            continue
+            # lấy link pdf từ browser
+            link_pdf = ""
+            reportCode = ""
+            noReportPDF = []
+            df = pd.read_csv(csv_path)
+            print(f"Đang thực hiện download BCTC {name_stock_group}")
+            for i, row in df.iterrows():
+                reportCode = row.iloc[1]
+                link_pdf = get_report_pdf_link(reportCode)
+                if link_pdf:
+                    download_pdf(reportCode, link_pdf, folder_stock_group_path)
+                else:
+                    print(f"Không tìm thấy link pdf của {reportCode}")
+                    noReportPDF.append(reportCode)
+                    continue
 
-    print(noReportPDF)
+            noReportPDF_df = pd.DataFrame(noReportPDF, columns=["Mã cổ phiếu"])
+            noReportPDF_filename = "Nhóm không có BCTC năm 2024.csv"
+            noReportPDF_path = os.path.join(pdf_path, noReportPDF_filename)
+            noReportPDF_df.to_csv(noReportPDF_path, index=False, encoding='utf-8-sig')
+            print("Lưu thành công file nhóm không có BCTC năm 2024")
+
+
