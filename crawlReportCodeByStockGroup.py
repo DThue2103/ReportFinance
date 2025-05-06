@@ -2,8 +2,8 @@
 import requests
 import pandas as pd
 from bs4 import BeautifulSoup
-
 import os
+import re
 
 url = "https://topi.vn/danh-sach-ma-chung-khoan-theo-nganh-tai-viet-nam.html"
 
@@ -13,8 +13,9 @@ soup = BeautifulSoup(response.content, "html.parser")
 
 h3s = soup.findAll("h3")
 
-folder_path = r'/CrawlFinanceReport/ReportFinance/ReportCode'
-os.makedirs(folder_path, exist_ok=True)
+folder_path = r"D:/CrawlProjects/CrawlFinanceReport/ReportFinance"
+folder_stock_group = os.path.join(folder_path, "ReportCode")
+os.makedirs(folder_stock_group, exist_ok=True)
 
 for h3 in h3s:
     strong = h3.find("strong")
@@ -48,6 +49,7 @@ for h3 in h3s:
         df = pd.DataFrame(data, columns=header)
         print(df)
 
-        name_df = nameStockGroup[2:]
-        csv_path = os.path.join(folder_path,f"{name_df}.csv")
+        name_df = re.sub(r'^[^a-zA-Z]*', '', nameStockGroup)
+
+        csv_path = os.path.join(folder_stock_group,f"{name_df}.csv")
         df.to_csv(csv_path, index=False, encoding='utf-8-sig')
